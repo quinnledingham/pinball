@@ -2,28 +2,92 @@ package pinball
 
 import "core:math"
 
-collision_point_circle :: proc(p: Vector2, circle: Circle) -> b8 {
-	distance := distance(p, circle.position)
-	if (distance <= circle.radius) {
-		return true
+collision_line_point :: proc(a: Vector2, b: Vector2, p: Vector2) -> (b8, Vector3)  {
+	d1 := distance(p, a)
+	d2 := distance(p, b)
+	line_length := distance(a, b)
+	buffer := f32(0.1)
+
+	vec := Vector3{b.x - a.x, b.y - a.y, 0}
+	normal := cross_product(vec, Vector3{0, 0, 1})
+
+	if (d1+d2 >= line_length - buffer && d1+d2 <= line_length + buffer) {
+		return true, normal
 	}
-	return false
+	return false, normal
 }
 
-collision_line_circle :: proc(a: Vector2, b: Vector2, circle: Circle) -> b8 {
-	inside1 := collision_point_circle(a, circle)
-	inside2 := collision_point_circle(b, circle)
-	if (inside1 || inside2) {
-		return true
+collision_point_circle :: proc(p: Vector2, circle: Circle) -> Collision {
+	distance := distance(p, circle.position)
+	if (distance <= circle.radius) {
+		vec := p - circle.position
+		return Collision{ true, Vector3{vec.x, vec.y, 0}, circle.radius - distance }
 	}
+	return Collision{ false, Vector3{0, 0, 0}, 0 }
+}
+
+collision_line_circle :: proc(a: Vector2, b: Vector2, circle: Circle) -> Collision {
 
 	len := distance(a, b)
 	dot := ( ((circle.position.x - a.x) * (b.x - a.x)) + ((circle.position.y - a.y) * (b.y - a.y)) ) / math.pow_f32(len, 2)
 
-	return false
+	closest: Vector2
+	closest.x = a.x + (dot * (b.x - a.x))
+	closest.y = a.y + (dot * (b.y - a.y))
+
+	on_segment, normal := collision_line_point(a, b, closest)
+	if (!on_segment) {
+		return Collision{ false, normal, 0}
+	}
+
+	dist := distance(closest, circle.position)
+	if (dist <= circle.radius) {
+		vec := closest - circle.position
+		return Collision{ true, Vector3{vec.x, vec.y, 0}, circle.radius - dist}
+	}
+
+	inside1 := collision_point_circle(a, circle)
+	inside2 := collision_point_circle(b, circle)
+
+	if inside1.active {
+		return inside1
+	}
+	
+	if inside2.active {
+		return inside2
+	}
+	
+	return Collision{ false, Vector3{0, 0, 0}, 0 }
 }
 
-collision_polygon_circle :: proc(vertices: []Vector2, circle: Circle) -> b8 {
+collision_triangle_circle :: proc(vertices: [dynamic]Vector2, circle: Circle) -> Collision {
+
+	next := 0
+	tri_index := 0
+	for current := 0; current < len(vertices); current += 1 {		
+		
+		next = current + 1
+		if (tri_index == 2) {
+			next = current - 2
+			tri_index = 0
+		} else {
+			tri_index += 1 
+		}
+		
+		vc := vertices[current]
+		vn := vertices[next]
+		
+		c := collision_line_circle(vc, vn, circle)
+		if c.active {
+			return c
+		}
+		
+	}
+	
+	return Collision{ false, Vector3{0, 0, 0}, 0 }
+}
+
+collision_polygon_circle :: proc(vertices: [dynamic]Vector2, circle: Circle) -> Collision {
 	next := 0
 	for current := 0; current < len(vertices); current += 1 {
 		next = current + 1
@@ -34,42 +98,12 @@ collision_polygon_circle :: proc(vertices: []Vector2, circle: Circle) -> b8 {
 		vc := vertices[current]
 		vn := vertices[next]
 
-		collision := collision_line_circle(vc, vn, circle)
-		if (collision) {
-			return true
+		c := collision_line_circle(vc, vn, circle)
+		if (c.active) {
+			return c
 		}
 	}
 	
-	return false
+	return Collision{ false, Vector3{0, 0, 0}, 0 }
 }
 
-collision :: proc(ball: Ball, r: Rect) -> (b8, Vector3) {
-	test_x := ball.position.x
-	test_y := r.e1.y
-	
-	if (ball.position.x < r.e1.x) {
-		test_x = r.e1.x // test left edge
-	} else if (ball.position.x > r.e2.x) {
-		test_x = r.e2.x // right edge
-	}
-
-	if (ball.position.y < r.e1.y) {
-		test_y = r.e1.y // top edge
-	} else if (ball.position.y > r.e2.y) {
-		test_y = r.e2.y // bottom edge
-	}
-
-	// get distance from closest edges
-	dist_x := ball.position.x - test_x
-	dist_y := ball.position.y - test_y
-	distance := math.sqrt_f32((dist_x * dist_x) + (dist_y * dist_y))
-
-	// if the distance is less than the radius, collision!
-	if (distance <= ball.radius) {
-		normal := cross_product(Vector3{1, 0, 0}, Vector3{0, 0, 1})
-		
-		return true, normal;
-	}
-	
-	return false, Vector3{0, 0, 0};
-}

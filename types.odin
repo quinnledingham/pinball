@@ -22,15 +22,29 @@ multiply_v2 :: proc(v: Vector2, r: f32) -> Vector2 {
 
 distance :: proc(a: Vector2, b: Vector2) -> f32 {
 	dist_x := a.x - b.x
-	dist_y := a.y - a.y
+	dist_y := a.y - b.y
 	return math.sqrt((dist_x * dist_x) + (dist_y * dist_y))
 }
 
-length_squared :: proc(v: Vector3) -> f32 { 
+length_squared_v2 :: proc(v: Vector2) -> f32 { 
+	return (v.x * v.x) + (v.y * v.y)
+}
+
+normalized_v2 :: proc(v: Vector2) -> Vector2 {
+	len_sq := length_squared(v)
+	if (len_sq < EPSILON) {
+		return v
+	}
+
+	inverse_length := 1.0 / math.sqrt_f32(len_sq)
+	return { v.x * inverse_length, v.y * inverse_length };
+}
+
+length_squared_v3 :: proc(v: Vector3) -> f32 { 
 	return (v.x * v.x) + (v.y * v.y) + (v.z * v.z) 
 }
 
-normalized :: proc(v: Vector3) -> Vector3 {
+normalized_v3 :: proc(v: Vector3) -> Vector3 {
 	len_sq := length_squared(v)
 	if (len_sq < EPSILON) {
 		return v
@@ -50,6 +64,8 @@ dot_product_v3 :: proc(l: Vector3, r: Vector3) -> f32 {
 
 multiply :: proc{ multiply_v2, multiply_v3 }
 dot_product :: proc{ dot_product_v2, dot_product_v3 }
+length_squared :: proc{ length_squared_v2, length_squared_v3 }
+normalized :: proc{ normalized_v2, normalized_v3 }
 
 cross_product :: proc(l: Vector3, r: Vector3) -> Vector3 {
 	return {
